@@ -1,0 +1,27 @@
+name: soil-env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - gdal=3.4.1
+  - ipykernel=6.25.2
+  - libgdal=3.4.1
+  - pip=23.2.1
+  - python=3.8.18
+  - pip:
+      - keras==2.10.0
+      - matplotlib==3.7.3
+      - numpy==1.24.4
+      - pandas==2.0.3
+      - rasterio==1.3.8
+      - scikit-learn==1.3.1
+      - scipy==1.10.1
+      - seaborn==0.12.2
+      - shapely==2.0.1
+      - tensorboard==2.10.1
+      - tensorboard-data-server==0.6.1
+      - tensorboard-plugin-wit==1.8.1
+      - tensorflow==2.10.0
+      - tensorflow-estimator==2.10.0
+      - tensorflow-io-gcs-filesystem==0.34.0
+      - tqdm==4.66.1

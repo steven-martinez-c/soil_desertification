@@ -41,4 +41,8 @@ conda install tensorflow
 
 Recuerda crear y activar un entorno virtual para el proyecto antes de instalar las librerías.
 
+```
+conda env create -f environment.yml
+```
+
 
