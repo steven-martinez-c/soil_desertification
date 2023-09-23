@@ -1,9 +1,12 @@
 """
 This module provides functions for analyzing and visualizing land cover classification data.
 """
+from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+from src.layers.dict_class import LandCoverClassDict
+from pyproj import Proj, Transformer
 from sklearn.utils.multiclass import unique_labels
 from sklearn.metrics import confusion_matrix
 
@@ -100,6 +103,59 @@ def plot_merge_class(labels, colors, class_names):
     plt.show()
 
 
+def process_data_points(train_pixels, landsat_datasets, dataset_labels):
+    """
+    Process the given data points to generate training and validation pixel locations.
+
+    Args:
+        train_pixels (list): A list of training pixel locations.
+        landsat_datasets (list): A list of Landsat datasets.
+        dataset_labels (array): The dataset labels.
+
+    Returns:
+        numpy.array: The label locations.
+    """
+    # generate the training and validation pixel locations
+    all_labels = []
+    label_locations = []
+    progression_bar = tqdm(train_pixels)
+    class_names = LandCoverClassDict().get_landsat_dictionary()
+
+    for index, pixel in enumerate(progression_bar):
+        progression_bar.set_description(f"Processing data point: {index}")
+
+        # row, col location in landsat
+        row, col = pixel[0]
+        ds_index = pixel[1]
+        l8_proj = Proj(landsat_datasets[ds_index].crs)
+        label_proj = Proj(dataset_labels.crs)
+        transformer = Transformer.from_crs(l8_proj.srs, label_proj.srs, always_xy=True)
+
+        # localización geográfica
+        x, y = landsat_datasets[ds_index].xy(row, col)
+        # pasar de la proyección label a la proyección del mosaico
+        x, y = transformer.transform(x, y)  # pylint: disable=E0633
+        # obtener la posición de fila y columna en la etiqueta
+        row, col = dataset_labels.index(x, y)
+        label_locations.append([row, col])
+
+        # formato (bandas, altura, anchura)
+        window = ((row, row + 1), (col, col + 1))
+        data = LandCoverClassDict().merge_classes(
+            dataset_labels.read(1, window=window, masked=False, boundless=True),
+            "landsat",
+        )
+        all_labels.append(data[0, 0])
+
+    label_locations = np.array(label_locations)
+
+    unique, counts = np.unique(np.array(all_labels), return_counts=True)
+    points = [(class_names[x], counts) for x, counts in list(zip(unique, counts))]
+    print("\n".join(map(str, points)))
+
+    return label_locations
+
+
 def locations_of_pixels(labels, locations, colors):
     """
     Plots the locations of training pixels on the image.
@@ -123,7 +179,6 @@ def locations_of_pixels(labels, locations, colors):
 
     # Scatter plot the locations of training pixels
     axs.scatter(locations[:, 1], locations[:, 0], s=10, c="r")
-
     axs.set_title("Locations of the training pixels")
     plt.show()
 
@@ -138,7 +193,7 @@ def plot_confusion_matrix(y_true, y_pred, class_dict, title=None, normalize=Fals
         class_dict (dict): Dictionary mapping class identifiers to class names.
         normalize (bool, optional): Indicates whether to normalize the confusion matrix.
         title (str, optional): Title of the plot. Default is None.
-        
+
     Returns:
         ax (matplotlib Axes): Axes of the plot.
     """
