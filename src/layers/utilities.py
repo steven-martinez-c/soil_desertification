@@ -1,14 +1,18 @@
 """
 This module provides functions for analyzing and visualizing land cover classification data.
 """
-from tqdm import tqdm
+import os
+import tarfile
+import tempfile
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from src.layers.dict_class import LandCoverClassDict
+
+from tqdm import tqdm
 from pyproj import Proj, Transformer
 from sklearn.utils.multiclass import unique_labels
 from sklearn.metrics import confusion_matrix
+from src.layers.dict_class import LandCoverClassDict
 
 
 def samples_by_class(labels, class_name):
@@ -246,3 +250,35 @@ def plot_confusion_matrix(y_true, y_pred, class_dict, title=None, normalize=Fals
             )
     fig.tight_layout()
     return axis
+
+
+def extract_landsat_images(path_tar):
+    """
+    Decompresses images from a Landsat TAR file.
+
+    Args:
+        path_tar (str): The path to the TAR file that contains the Landsat images.
+
+    Returns:
+        tuple: A tuple containing two lists. The first list contains the paths to the
+        decompressed bands of the Landsat images. The second list contains the paths
+        to the decompressed metadata files.
+    """
+    base_dir = "/tmp/landsat/"
+    os.makedirs(base_dir, exist_ok=True)
+
+    tmp = tempfile.mkdtemp(dir=base_dir)
+    metadata = []
+    bands_dataset = []
+    bands = ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "QA_PIXEL"]
+
+    with tarfile.open(path_tar, "r") as tar:
+        for nombre in tar.getnames():
+            if nombre.endswith(tuple(f"_{band}.TIF" for band in bands)):
+                bands_dataset.append(f"{tmp}/{nombre}")
+                tar.extract(nombre, path=tmp)
+            elif nombre.endswith("MTL.txt"):
+                metadata.append(f"{tmp}/{nombre}")
+                tar.extract(nombre, path=tmp)
+
+    return bands_dataset, metadata
