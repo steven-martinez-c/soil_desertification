@@ -2,6 +2,8 @@
 This module contains the RasterController class.
 """
 import rasterio as rio
+from rasterio import mask
+import geopandas as gpd
 
 
 class RasterController:
@@ -69,19 +71,67 @@ class RasterController:
         Returns:
             str: The file path of the merged image.
         """
-        #name = band_paths[0].split("/")[-1].split("_B")[0]
+        # name = band_paths[0].split("/")[-1].split("_B")[0]
         # Read metadata of the first file and assume all other bands are the same
         with rio.open(band_paths[0]) as src0:
             meta = src0.meta
 
         # Update metadata to reflect the number of layers and set LWZ compression
-        meta.update(count=len(band_paths), compress='LZW')
-        
+        meta.update(count=len(band_paths), compress="LZW")
+
         # Create the combined image and write the bands to it
-        output_dir = f'../data/images/processed/products/landsat/{product_id}_M.tif'
-        with rio.open(output_dir, 'w', **meta) as dst:
+        output_dir = f"../data/images/processed/products/landsat/{product_id}_M.tif"
+        with rio.open(output_dir, "w", **meta) as dst:
             for band_id, band_path in enumerate(band_paths, start=1):
                 with rio.open(band_path) as src1:
                     dst.write_band(band_id, src1.read(1))
-                    
+
         return output_dir
+
+    def crop_mask_raster(self, image, mask_shape, product_id):
+        """
+        Crop the input raster image using the provided shapefile mask.
+
+        Args:
+            image_path (str): Path to the input raster image.
+            mask_shape_path (str): Path to the shapefile mask.
+            product_id (str): Product ID.
+
+        Returns:
+            str: Path to the cropped raster image.
+        """
+        try:
+            # Open the input raster image
+            with rio.open(image) as src:
+                # Read and reproject the shapefile mask
+                shapefile = gpd.read_file(mask_shape)
+                shapefile = shapefile.to_crs(src.crs)
+
+                # Crop the image using the shapefile mask
+                out_image, out_transform = mask.mask(src, shapefile.geometry, crop=True)
+
+                # Update the metadata of the output image
+                out_meta = src.meta.copy()
+                out_meta.update(
+                    {
+                        "driver": "GTiff",
+                        "height": out_image.shape[1],
+                        "width": out_image.shape[2],
+                        "transform": out_transform,
+                        "compress": "LZW",
+                    }
+                )
+
+                # Define the output path for the cropped image
+                output_path = (
+                    f"../data/images/processed/products/landsat/crops/{product_id}C.tif"
+                )
+
+                # Write the cropped image to the output path
+                with rio.open(output_path, "w", **out_meta) as dest:
+                    dest.write(out_image)
+
+            return output_path
+        
+        except Exception as error:
+            print(f"An error occurred while cropping the image: {str(error)}")
