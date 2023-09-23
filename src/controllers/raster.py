@@ -57,3 +57,31 @@ class RasterController:
         if window:
             return raster.read(window=window)
         return raster.read()
+
+    def merge_rasters(self, band_paths, product_id):
+        """
+        Merge multiple images into a single composite image.
+
+        Parameters:
+            band_paths (List[str]): A list of file paths to the individual band images.
+            product_id (str): The ID of the product.
+
+        Returns:
+            str: The file path of the merged image.
+        """
+        #name = band_paths[0].split("/")[-1].split("_B")[0]
+        # Read metadata of the first file and assume all other bands are the same
+        with rio.open(band_paths[0]) as src0:
+            meta = src0.meta
+
+        # Update metadata to reflect the number of layers and set LWZ compression
+        meta.update(count=len(band_paths), compress='LZW')
+        
+        # Create the combined image and write the bands to it
+        output_dir = f'../data/images/processed/products/landsat/{product_id}_M.tif'
+        with rio.open(output_dir, 'w', **meta) as dst:
+            for band_id, band_path in enumerate(band_paths, start=1):
+                with rio.open(band_path) as src1:
+                    dst.write_band(band_id, src1.read(1))
+                    
+        return output_dir

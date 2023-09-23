@@ -7,7 +7,6 @@ import tempfile
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-
 from tqdm import tqdm
 from pyproj import Proj, Transformer
 from sklearn.utils.multiclass import unique_labels
