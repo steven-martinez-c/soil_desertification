@@ -2,6 +2,7 @@
 This module provides functions for analyzing and visualizing land cover classification data.
 """
 import os
+import re
 import tarfile
 import tempfile
 import numpy as np
@@ -265,19 +266,64 @@ def extract_landsat_images(path_tar):
     """
     base_dir = "/tmp/landsat/"
     os.makedirs(base_dir, exist_ok=True)
-
     tmp = tempfile.mkdtemp(dir=base_dir)
-    metadata = []
+    
+    metadata = ''
     bands_dataset = []
     bands = ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "QA_PIXEL"]
 
     with tarfile.open(path_tar, "r") as tar:
-        for nombre in tar.getnames():
-            if nombre.endswith(tuple(f"_{band}.TIF" for band in bands)):
-                bands_dataset.append(f"{tmp}/{nombre}")
-                tar.extract(nombre, path=tmp)
-            elif nombre.endswith("MTL.txt"):
-                metadata.append(f"{tmp}/{nombre}")
-                tar.extract(nombre, path=tmp)
+        for name in tar.getnames():
+            if name.endswith(tuple(f"_{band}.TIF" for band in bands)):
+                bands_dataset.append(f"{tmp}/{name}")
+                tar.extract(name, path=tmp)
+            elif name.endswith("MTL.txt"):
+                metadata = f"{tmp}/{name}"
+                tar.extract(name, path=tmp)
 
     return bands_dataset, metadata
+
+
+def read_metadata(path_mtl):
+    """
+    Read metadata from a txt file.
+
+    Parameters:
+        ruta_metadatos (str): The path to the metadata file.
+
+    Returns:
+        str: The metadata read from the file, or None if there was an error.
+    """
+    try:
+        with open(path_mtl, "r", encoding="utf-8") as file:
+            metadata = file.read()
+
+        return metadata
+
+    except Exception as error:
+        print(f"Error al leer los metadatos: {str(error)}")
+
+
+def search_mtl_params(param, metadata):
+    """
+    Search for a specific parameter in metadata and return its value.
+
+    Args:
+        param (str): The name of the parameter to search for in the metadata file.
+        metadata (str): The content of the metadata file in string format.
+
+    Returns:
+        str or None: The value of the parameter if found, or None if not found.
+    """
+    # Try to capture numeric values (decimal or scientific notation)
+    match_numeric = re.search(rf"{param} = (-?[\d\.]+(?:[Ee][-+]?\d+)?)", metadata)
+    if match_numeric:
+        return match_numeric.group(1)
+
+    # Try to capture text values
+    match_text = re.search(rf'{param} = "(.*?)"', metadata)
+    if match_text:
+        return match_text.group(1)
+
+    # If no value is found, return None
+    return None
