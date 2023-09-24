@@ -1,9 +1,12 @@
 """
 This module contains the RasterController class.
 """
+import re
+import numpy as np
 import rasterio as rio
 from rasterio import mask
 import geopandas as gpd
+from src.layers.utilities import search_mtl_params
 
 
 class RasterController:
@@ -88,13 +91,13 @@ class RasterController:
 
         return output_dir
 
-    def crop_mask_raster(self, image, mask_shape, product_id):
+    def crop_mask_raster(self, dataset, mask_shape):
         """
         Crop the input raster image using the provided shapefile mask.
 
         Args:
-            image_path (str): Path to the input raster image.
-            mask_shape_path (str): Path to the shapefile mask.
+            dataset (str): Path to the input raster image.
+            mask_shape (str): Path to the shapefile mask.
             product_id (str): Product ID.
 
         Returns:
@@ -102,7 +105,7 @@ class RasterController:
         """
         try:
             # Open the input raster image
-            with rio.open(image) as src:
+            with rio.open(dataset) as src:
                 # Read and reproject the shapefile mask
                 shapefile = gpd.read_file(mask_shape)
                 shapefile = shapefile.to_crs(src.crs)
@@ -122,6 +125,7 @@ class RasterController:
                     }
                 )
 
+                product_id = dataset.split('/')[-1].split('.tif')[0]
                 # Define the output path for the cropped image
                 output_path = (
                     f"../data/images/processed/products/landsat/crops/{product_id}C.tif"
@@ -132,6 +136,79 @@ class RasterController:
                     dest.write(out_image)
 
             return output_path
-        
+
         except Exception as error:
             print(f"An error occurred while cropping the image: {str(error)}")
+
+    def correct_toa_radiance(self, dataset_raster, metadata):
+        """
+        Corrects top-of-atmosphere (TOA) radiance values in an image using provided metadata.
+
+        Args:
+            imagen (str): Path to the Landsat image file.
+            metadata (str): Metadata containing information required for correction.
+
+        Returns:
+            str: Path to the corrected TOA image file.
+
+        Raises:
+            Exception: If an error occurs during the correction process.
+
+        """
+        try:
+            # Extract solar elevation angle from metadata
+            solar_elevation = float(search_mtl_params("SUN_ELEVATION", metadata))
+            solar_angle = np.sin(np.radians(solar_elevation))
+
+            # Read the input image
+            with rio.open(dataset_raster) as src:
+                data = src.read()  # Read all bands
+
+            # Create metadata for the output corrected image
+            out_meta = src.meta.copy()
+            out_meta.update({"driver": "GTiff", "compress": "LZW", "dtype": "float32"})
+
+            # Create an array to store corrected data
+            corrected_data = np.empty_like(data, dtype=np.float32)
+
+            for index, item in enumerate(data):
+                if index < 7:
+                    # Extract multiplicative and additive reflectance scaling factors
+                    reflectance_multiplier = float(
+                        search_mtl_params(
+                            f"REFLECTANCE_MULT_BAND_{index + 1}", metadata
+                        )
+                    )
+                    reflectance_additive = float(
+                        search_mtl_params(f"REFLECTANCE_ADD_BAND_{index + 1}", metadata)
+                    )
+
+                    # Calculate TOA reflectance
+                    reflectance = (
+                        item * reflectance_multiplier + reflectance_additive
+                    ) / solar_angle
+
+                    # Set nodata values to NaN
+                    reflectance[item == out_meta["nodata"]] = np.nan
+
+                    # Ensure reflectance values are within the 0-1 range
+                    reflectance = np.clip(reflectance, 0, 1)
+
+                    corrected_data[index] = reflectance
+                else:
+                    corrected_data[index] = item
+
+            # Extract product ID from metadata
+            product_id = dataset_raster.split('/')[-1].split('.tif')[0]
+
+            # Define the output file path for the corrected image
+            output_file = f"../data/images/processed/products/landsat/toa/{product_id}T.tif"
+            
+            # Write the corrected data to the output file
+            with rio.open(output_file, "w", **out_meta) as dest:
+                dest.write(corrected_data)
+
+            return output_file
+
+        except Exception as error:
+            print(f"Error en la corrección TOA: {str(error)}")
