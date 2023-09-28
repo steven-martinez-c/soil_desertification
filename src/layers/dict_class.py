@@ -1,7 +1,7 @@
 """
     A class that represents a dictionary
 """
-
+import numpy as np
 
 class LandCoverClassDict:
     """
@@ -72,10 +72,12 @@ class LandCoverClassDict:
         elif satellite == "landsat":
             reclassification = {255: 0}
 
-        for index, item in reclassification.items():
-            value[value == index] = item
+        # Utiliza np.vectorize para aplicar la reasignación a todos los elementos del array
+        reclassify = np.vectorize(lambda x: reclassification.get(x, x))
+        value = reclassify(value)
 
         return value
+    
 
     landsat = dict(
         (

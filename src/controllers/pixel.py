@@ -139,8 +139,7 @@ class PixelController:
                             row +
                             raster_poly.bounds[1], col + raster_poly.bounds[0]
                         )
-                        x, y = transformer.transform(
-                            x, y)  # pylint: disable=E0633
+                        x, y = transformer.transform(x, y)  # pylint: disable=E0633
                         row, col = image_dataset.index(x, y)
                         l8_points.append((row, col))
 
@@ -151,4 +150,5 @@ class PixelController:
                 zip(all_points_per_image, dataset_index_list))
             train_pixels += dataset_pixels
             random.shuffle(train_pixels)
+            
         return train_pixels

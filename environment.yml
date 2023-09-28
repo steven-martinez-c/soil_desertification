@@ -3,12 +3,15 @@ channels:
   - conda-forge
   - defaults
 dependencies:
+  - conda=23.7.4
   - ipykernel=6.25.2
   - pip=23.2.1
   - python=3.8.18
   - gdal=3.4.1
   - libgdal=3.4.1
+  - cudatoolkit=11.8.0
   - pip:
+      - tqdm==4.66.1
       - geopandas==0.13.2
       - keras==2.10.0
       - matplotlib==3.7.3
@@ -20,10 +23,12 @@ dependencies:
       - scipy==1.10.1
       - seaborn==0.12.2
       - shapely==2.0.1
+      - nvidia-cublas-cu11==11.11.3.6
+      - nvidia-cudnn-cu11==8.6.0.163
       - tensorboard==2.10.1
       - tensorboard-data-server==0.6.1
       - tensorboard-plugin-wit==1.8.1
-      - tensorflow==2.10.0
+      - tensorflow==2.10.1
       - tensorflow-estimator==2.10.0
       - tensorflow-io-gcs-filesystem==0.34.0
-      - tqdm==4.66.1
+
