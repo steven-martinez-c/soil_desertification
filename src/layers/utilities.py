@@ -6,9 +6,11 @@ import re
 import tarfile
 import tempfile
 import numpy as np
+import geopandas as gpd
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from tqdm import tqdm
+from shapely.geometry import Point
 from pyproj import Proj, Transformer
 from sklearn.utils.multiclass import unique_labels
 from sklearn.metrics import confusion_matrix
@@ -327,3 +329,18 @@ def search_mtl_params(param, metadata):
 
     # If no value is found, return None
     return None
+
+
+def save_pixels(data, out_path):
+    """
+    Save the given pixel data to a file.
+
+    Args:
+        data (list): A list of tuples containing pixel coordinates and their corresponding values.
+        out_path (str): The file path where the output file will be saved.
+    """
+
+    geometry = [Point(x, y) for (x, y), _ in data]
+    gdf = gpd.GeoDataFrame(geometry=geometry, columns=["geometry"])
+    gdf["index"] = [cls for _, cls in data]
+    gdf.to_file(out_path)
