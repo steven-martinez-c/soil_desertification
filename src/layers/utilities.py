@@ -339,8 +339,19 @@ def save_pixels(data, out_path):
         data (list): A list of tuples containing pixel coordinates and their corresponding values.
         out_path (str): The file path where the output file will be saved.
     """
+    # Extract coordinates and values from the data
+    coordinates = [(x, y) for (x, y), _ in data]
+    values = [value for _, value in data]
 
-    geometry = [Point(x, y) for (x, y), _ in data]
-    gdf = gpd.GeoDataFrame(geometry=geometry, columns=["geometry"])
-    gdf["index"] = [cls for _, cls in data]
+    # Create a GeoDataFrame with coordinates and values
+    gdf = gpd.GeoDataFrame(
+        {
+            "geometry": [Point(x, y) for x, y in coordinates],
+            "index": values,
+            "row": [x for x, _ in coordinates],
+            "col": [y for _, y in coordinates],
+        }
+    )
+
+    # Save the GeoDataFrame to the specified output path
     gdf.to_file(out_path)

@@ -21,8 +21,8 @@ class TileController:
             width (int): The width of each tile.
             pixel_locations (list): A list of pixel locations.
             batch_size (int): The batch size.
-
         """
+        
         self.image_datasets = images
         self.label_dataset = label
         self.tile_height = height
@@ -126,7 +126,7 @@ class TileController:
             [352, 368, 392, 416, 432, 480, 840, 864, 880, 904, 928, 944, 1352],
         ).any():
             return False
-
+        
         # Tile is valid if it passes all the checks
         return True
 
