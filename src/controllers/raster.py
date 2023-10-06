@@ -5,7 +5,7 @@ import numpy as np
 import rasterio as rio
 from rasterio import mask
 import geopandas as gpd
-from src.layers.utilities import search_mtl_params
+from src.layers.utilities import search_mtl_params, cloud_masking
 
 
 class RasterController:
@@ -90,7 +90,7 @@ class RasterController:
 
         return output_dir
 
-    def crop_mask_raster(self, dataset, mask_shape):
+    def cut_shape_mask(self, dataset, mask_shape):
         """
         Crop the input raster image using the provided shapefile mask.
 
@@ -127,7 +127,7 @@ class RasterController:
                 product_id = dataset.split("/")[-1].split(".tif")[0]
                 # Define the output path for the cropped image
                 output_path = (
-                    f"../data/images/processed/products/landsat/crops/{product_id}C.tif"
+                    f"../data/images/processed/products/landsat/clips/{product_id}C.tif"
                 )
 
                 # Write the cropped image to the output path
@@ -192,9 +192,11 @@ class RasterController:
 
                     # Ensure reflectance values are within the 0-1 range
                     planetary_reflectance = np.clip(planetary_reflectance, 0, 1)
-                    
+
                     # Scaling the values to the appropriate range for uint16 (0-65535)
-                    scaled_planetary_reflectance = (planetary_reflectance * 65535).astype(np.uint16)
+                    scaled_planetary_reflectance = (
+                        planetary_reflectance * 65535
+                    ).astype(np.uint16)
 
                     corrected_data[index] = scaled_planetary_reflectance
                 else:
@@ -216,3 +218,102 @@ class RasterController:
 
         except Exception as error:
             print(f"Error en la corrección TOA: {str(error)}")
+
+
+    def cut_cloud_mask(self, image):
+        """
+        Cut cloud mask from dataset.
+
+        Args:
+            dataset (ndarray): The input dataset.
+
+        Returns:
+            ndarray: The masked dataset with cloud pixels set to 1.
+            meta: The metadata of the masked dataset.
+        """
+        with rio.open(image) as src:
+            dataset = src.read()
+        
+            # Get the QA band
+            qa_band = dataset[7, :, :]
+            # Set any value of -9999 to 0
+            qa_band[qa_band == -9999] = 0
+
+            # Generate the cloud mask using the cloud_masking function
+            cloud_mask = [0 if cloud_masking(value) else 1 for value in qa_band.flatten()]
+            
+            # Reshape the cloud mask to match the shape of the dataset
+            cloud_bits = np.array(cloud_mask).reshape(dataset[0].shape)
+            
+            # Update the metadata of the output image
+            out_meta = src.meta.copy()
+            out_meta.update(
+                {
+                    "driver": "GTiff",
+                    "height": dataset.shape[1],
+                    "width": dataset.shape[2],
+                    "compress": "LZW",
+                }
+            )
+
+            # Create a copy of the dataset
+            masked_data = np.copy(dataset)
+
+            # Set the cloud pixels in the masked_data to 0
+            masked_data[:-1, cloud_bits == 0] = 0
+            
+            product_id = image.split("/")[-1].split(".tif")[0]
+            output = f'../data/images/processed/products/landsat/cloud/{product_id}.tif'
+            with rio.open(output, "w", **out_meta) as dest:
+                dest.write(masked_data)
+
+        return masked_data, cloud_mask, src.meta
+
+
+    def apply_mask_without_clouds(self, image, clouds, cloud_mask, meta, product_id):
+        """
+        Apply a cloud mask to an image, removing the clouds.
+
+        Args:
+            image (str): Path to the image file.
+            clouds (ndarray): Array containing the cloud data.
+            cloud_mask (ndarray): Array containing the cloud mask.
+            cloud_bits (ndarray): Array containing the cloud bits.
+            meta (dict): Metadata for the output file.
+
+        Returns:
+            ndarray: The image with clouds masked out.
+        """
+        # Open the image file
+        with rio.open(image) as src:
+            # Read the image data
+            data_without_clouds = src.read()
+            
+        # Reshape the cloud mask to match the shape of the dataset
+        cloud_bits = np.array(cloud_mask).reshape(clouds[0].shape)
+
+        # Crop data_without_clouds to match the dimension of cloud_bits
+        data_without_clouds = data_without_clouds[:, :, : cloud_bits.shape[1]]
+        
+        # Create a copy of data_without_clouds
+        masked_data = np.copy(data_without_clouds)
+        
+        # Check if clouds has more bands than data_without_clouds
+        if clouds.shape[2] > masked_data.shape[2]:
+            diff = clouds.shape[2] - masked_data.shape[2]
+            masked_data = np.pad(masked_data, ((0, 0), (0, 0), (0, diff)), mode='constant', constant_values=0)
+        else:
+            masked_data = masked_data
+
+        # Invert the cloud mask
+        cloud_mask_inverse = cloud_bits != 1
+
+        # Replace the cloud pixels in data_clouds with the corresponding pixels in masked_data
+        clouds[:-1, cloud_mask_inverse] = masked_data[:-1, cloud_mask_inverse]
+
+        product = product_id.split(".tif")[0]
+        output = f'../data/images/processed/products/landsat/toa/{product}.tif'
+        with rio.open(output, "w", **meta) as dest:
+            dest.write(clouds)
+
+        return clouds
