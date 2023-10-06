@@ -30,7 +30,7 @@ class TileController:
         self.pixel_locations = pixel_locations
         self.batch_size = batch_size
 
-        self.dt_proj = Proj(self.image_datasets[0].crs)
+        self.raster_proj = Proj(self.image_datasets[0].crs)
         self.label_proj = Proj(self.label_dataset.crs)
         self.band_count = self.image_datasets[0].count
         self.class_count = len(LandCoverClassDict().get_landsat_dictionary())
@@ -151,9 +151,9 @@ class TileController:
         (x_raster, y_raster) = self.image_datasets[dataset_index].xy(row, col)
 
         # Convert the coordinates to the label projection if they are not already in the same projection
-        if self.dt_proj != self.label_proj:
+        if self.raster_proj != self.label_proj:
             transformer = Transformer.from_crs(
-                self.dt_proj.srs, self.label_proj.srs, always_xy=True
+                self.raster_proj.srs, self.label_proj.srs, always_xy=True
             )
             # pylint: disable=E0633
             x_raster, y_raster = transformer.transform(x_raster, y_raster)

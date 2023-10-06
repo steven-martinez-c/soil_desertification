@@ -269,10 +269,10 @@ def extract_landsat_images(path_tar):
     base_dir = "/tmp/landsat/"
     os.makedirs(base_dir, exist_ok=True)
     tmp = tempfile.mkdtemp(dir=base_dir)
-    
-    metadata = ''
+
+    metadata = ""
     bands_dataset = []
-    bands = ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "QA_PIXEL"]
+    bands = ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "QA_PIXEL", "BQA"]
 
     with tarfile.open(path_tar, "r") as tar:
         for name in tar.getnames():
@@ -355,3 +355,44 @@ def save_pixels(data, out_path):
 
     # Save the GeoDataFrame to the specified output path
     gdf.to_file(out_path)
+
+
+def cloud_masking(value):
+    """
+    Determines if a pixel is a cloud based on its bitmask value.
+
+    Args:
+        value (int): The bitmask value of the pixel.
+
+    Returns:
+        bool: True if the pixel is a cloud, False otherwise.
+
+    Cloud bitmask:
+
+    * Simple bits:
+        * bit 0: fill
+        * bit 1: dilated cloud
+        * bit 2: cirrus high
+        * bit 3: cloud
+        * bit 4: cloud shadow
+
+    * Pairs of bits:
+        * bit 8 and 9: cloud confidence (high)
+        * bit 10 and 11: cloud shadow confidence (high)
+        * bit 14 and 15: cirrus confidence (high)
+    """
+
+    # Check if any of the simple bits are set.
+    cloud_bits = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4)
+
+    # Check if any of the pair of bits are set.
+    confidence_bits = (
+        ((1 << 8) & (1 << 9))
+        | ((1 << 8) & (0 << 9))
+        | ((1 << 10) & (1 << 11))
+        | ((1 << 10) & (0 << 11))
+        | ((1 << 14) & (1 << 15))
+        | ((1 << 14) & (0 << 15))
+    )
+
+    return (value & cloud_bits) != 0 or (value & confidence_bits) != 0
