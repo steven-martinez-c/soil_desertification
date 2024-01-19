@@ -4,6 +4,7 @@ This module contains the RasterController class.
 import numpy as np
 import rasterio as rio
 from rasterio import mask
+from rasterio.windows import Window
 import geopandas as gpd
 from src.layers.utilities import search_mtl_params, cloud_masking
 
@@ -61,6 +62,28 @@ class RasterController:
         if window:
             return raster.read(window=window)
         return raster.read()
+    
+    
+    def read_windows(self, rasters, c, r, buffer, tile_size):
+        """
+        Reads windows from multiple rasters.
+
+        Args:
+            rasters (list): A list of rasters.
+            c (int): The column index.
+            r (int): The row index.
+            buffer (int): The buffer size.
+            tile_size (int): The size of the tile.
+
+        Returns:
+            tuple: A tuple containing the tiles.
+        """
+        tiles = []
+        #only works when rasters are in same projection
+        for raster in rasters:
+            tile = raster.read(list(np.arange(1, raster.count+1)), window=Window(c-buffer, r-buffer, tile_size, tile_size))
+            tiles.append(tile)
+        return (*tiles,)
 
     def merge_rasters(self, band_paths, product_id):
         """

@@ -93,62 +93,63 @@ class PixelController:
         """
         train_pixels = []
         labels_image = self.raster.read_raster(self.label_dataset)
-        l8_proj = Proj(image_datasets[0].crs)
+        l8_proj = Proj(image_datasets['2018'][0].crs)
         train_count_per_dataset = math.ceil(train_count / len(image_datasets))
         print("Train count per dataset: ", train_count_per_dataset)
         points_per_class = train_count_per_dataset // len(
             np.unique(self.dict.merge_classes(labels_image, "landsat"))
         )
         print("Points per class: ", points_per_class)
+        
 
-        for index, image_dataset in enumerate(image_datasets):
-            raster_poly = self._get_raster_polygon(image_dataset)
-            masked_label_image = self.label_dataset.read(
-                window=Window.from_slices(
-                    (int(raster_poly.bounds[1]), int(raster_poly.bounds[3])),
-                    (int(raster_poly.bounds[0]), int(raster_poly.bounds[2])),
-                )
-            )
-
-            if merge:
-                masked_label_image = self.dict.merge_classes(
-                    masked_label_image, "landsat"
-                )
-
-            all_points_per_image = []
-            progression_bar = tqdm(
-                np.unique(self.dict.merge_classes(labels_image, "landsat"))
-            )
-
-            for cls in progression_bar:
-                class_name = self.dict.get_landsat_dictionary()[int(cls)]
-                progression_bar.set_description(
-                    f"Processing << {class_name} >>")
-                cls = int(cls)
-                rows, cols = np.where(masked_label_image[0] == cls)
-                all_locations = list(zip(rows, cols))
-                random.shuffle(all_locations)
-
-                l8_points = []
-                if len(all_locations) != 0:
-                    transformer = Transformer.from_crs(
-                        self.label_proj.srs, l8_proj.srs, always_xy=True
+        for index, date in enumerate(image_datasets):
+            for image_dataset in image_datasets[date]:
+                raster_poly = self._get_raster_polygon(image_dataset)
+                masked_label_image = self.label_dataset.read(
+                    window=Window.from_slices(
+                        (int(raster_poly.bounds[1]), int(raster_poly.bounds[3])),
+                        (int(raster_poly.bounds[0]), int(raster_poly.bounds[2])),
                     )
-                    for row, col in all_locations[:points_per_class]:
-                        x, y = self.label_dataset.xy(
-                            row +
-                            raster_poly.bounds[1], col + raster_poly.bounds[0]
+                )
+
+                if merge:
+                    masked_label_image = self.dict.merge_classes(
+                        masked_label_image, "landsat"
+                    )
+
+                all_points_per_image = []
+                progression_bar = tqdm(
+                    np.unique(self.dict.merge_classes(labels_image, "landsat"))
+                )
+
+                for cls in progression_bar:
+                    class_name = self.dict.get_landsat_dictionary()[int(cls)]
+                    progression_bar.set_description(f"Processing <<{class_name}>>")
+                    cls = int(cls)
+                    rows, cols = np.nonzero(masked_label_image[0] == cls)
+                    all_locations = list(zip(rows, cols))
+                    random.shuffle(all_locations)
+
+                    l8_points = []
+                    if len(all_locations) != 0:
+                        transformer = Transformer.from_crs(
+                            self.label_proj.srs, l8_proj.srs, always_xy=True
                         )
-                        x, y = transformer.transform(x, y)  # pylint: disable=E0633
-                        row, col = image_dataset.index(x, y)
-                        l8_points.append((row, col))
+                        for row, col in all_locations[:points_per_class]:
+                            x, y = self.label_dataset.xy(
+                                row +
+                                raster_poly.bounds[1], col + raster_poly.bounds[0]
+                            )
+                            x, y = transformer.transform(x, y)  # pylint: disable=E0633
+                            row, col = image_dataset.index(x, y)
+                            l8_points.append((row, col))
 
-                    all_points_per_image += l8_points
+                        all_points_per_image += l8_points
 
-            dataset_index_list = [index] * len(all_points_per_image)
-            dataset_pixels = list(
-                zip(all_points_per_image, dataset_index_list))
-            train_pixels += dataset_pixels
-            random.shuffle(train_pixels)
+                dataset_index_list = [date] * len(all_points_per_image)
+                dataset_pixels = list(
+                    zip(all_points_per_image, dataset_index_list))
+                train_pixels += dataset_pixels
+                random.shuffle(train_pixels)
             
         return train_pixels

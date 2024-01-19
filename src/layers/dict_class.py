@@ -3,6 +3,7 @@
 """
 import numpy as np
 
+
 class LandCoverClassDict:
     """
     A class that represents a dictionary of land cover classes.
@@ -77,7 +78,18 @@ class LandCoverClassDict:
         value = reclassify(value)
 
         return value
-    
+
+    class_to_index = dict(
+        (
+            (0, 0),
+            (1, 1),
+            (2, 2),
+            (3, 3),
+            (4, 4),
+            (5, 5),
+            (6, 6),
+        )
+    )
 
     landsat = dict(
         (
